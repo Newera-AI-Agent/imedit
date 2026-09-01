@@ -46,6 +46,7 @@ export default function ImageEditor() {
   const [format, setFormat] = useState<ExportFormat>("png");
   const [quality, setQuality] = useState(92);
   const [exporting, setExporting] = useState(false);
+  const [renderVersion, setRenderVersion] = useState(0);
   const exportImageRef = useRef<(skipCompare?: boolean) => void>(() => undefined);
   const fileInput = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
