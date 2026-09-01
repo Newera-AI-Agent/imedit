@@ -1,3 +1,3 @@
 # VM agent result
 
-No repository changes were made. The required verification, implementation, testing, and build steps remain unfinished because shell/file tools were unavailable.
+No files were changed and no build/test evidence is available. The requested verification, TODO update, commit, and deployment decision remain outstanding.
