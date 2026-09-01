@@ -1,12 +1,20 @@
 {
-  "originalRequest": "public , imedit",
-  "normalizedInterpretation": "public , imedit",
+  "originalRequest": "bro, when build is domne, then why you are doing editing. just fionish work fast",
+  "normalizedInterpretation": "when build is domne, then why you are doing editing.; just fionish work fast",
   "assumptions": [],
   "profile": "fast",
   "requirements": [
     {
       "id": "REQ-001",
-      "description": "public , imedit",
+      "description": "when build is domne, then why you are doing editing.",
+      "mandatory": true,
+      "status": "pending",
+      "evidenceType": "build_passes",
+      "acceptanceCriteria": "A relevant build or static verification passed after the latest relevant edit."
+    },
+    {
+      "id": "REQ-002",
+      "description": "just fionish work fast",
       "mandatory": true,
       "status": "pending",
       "evidenceType": "custom",
@@ -14,16 +22,19 @@
     }
   ],
   "featureMatrix": [
-    "public , imedit"
+    "when build is domne, then why you are doing editing.",
+    "just fionish work fast"
   ],
   "contentMatrix": [],
   "assetManifest": [],
   "audioManifest": [],
-  "testMatrix": [],
+  "testMatrix": [
+    "when build is domne, then why you are doing editing."
+  ],
   "artifactMatrix": [],
   "platformRequirements": [],
   "permissions": [],
   "deferredItems": [],
-  "createdAt": 1788269650333,
-  "updatedAt": 1788269650334
+  "createdAt": 1788271093738,
+  "updatedAt": 1788271093738
 }

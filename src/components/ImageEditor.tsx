@@ -45,28 +45,78 @@ export default function ImageEditor() {
   const [compare, setCompare] = useState(false);
   const [format, setFormat] = useState<ExportFormat>("png");
   const [quality, setQuality] = useState(92);
+  const [exporting, setExporting] = useState(false);
+  const [renderVersion, setRenderVersion] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const loadRequest = useRef(0);
+  const pendingUrl = useRef<string | null>(null);
+  const compareExport = useRef<{ signature: string; image: HTMLImageElement } | null>(null);
+  const renderedSignature = useRef("");
   const present = history.present;
 
   const loadFile = useCallback((file: File) => {
     setError(""); setStatus("");
+    const requestId = ++loadRequest.current;
+    if (pendingUrl.current) {
+      URL.revokeObjectURL(pendingUrl.current);
+      pendingUrl.current = null;
+    }
     const issue = validateImageFile(file);
-    if (issue) { setError(issue); return; }
+    if (issue) { setLoading(false); setError(issue); return; }
     setLoading(true);
     const url = URL.createObjectURL(file);
+    pendingUrl.current = url;
     const nextImage = new window.Image();
+    const clearPendingUrl = () => {
+      if (pendingUrl.current === url) pendingUrl.current = null;
+    };
+    const cancelPendingUrl = () => {
+      clearPendingUrl();
+      URL.revokeObjectURL(url);
+    };
     nextImage.onload = () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-      setObjectUrl(url); setImage(nextImage); setFileName(file.name.replace(/\.[^.]+$/, ""));
+      if (requestId !== loadRequest.current) {
+        cancelPendingUrl();
+        return;
+      }
+      clearPendingUrl();
+      setObjectUrl((currentUrl) => {
+        if (currentUrl) URL.revokeObjectURL(currentUrl);
+        return url;
+      });
+      setImage(nextImage); setFileName(file.name.replace(/\.[^.]+$/, ""));
       setHistory(createHistory()); setLoading(false); setStatus(`Loaded ${file.name}`);
     };
-    nextImage.onerror = () => { URL.revokeObjectURL(url); setLoading(false); setError("This file could not be decoded as an image. Try another file."); };
+    nextImage.onerror = () => {
+      releasePendingUrl();
+      if (requestId !== loadRequest.current) return;
+      setLoading(false);
+      setError("This file could not be decoded as an image. Try another file.");
+    };
     nextImage.src = url;
-  }, [objectUrl]);
+  }, []);
 
-  useEffect(() => () => { if (objectUrl) URL.revokeObjectURL(objectUrl); }, [objectUrl]);
-  useEffect(() => { const onKey = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key === "z") { event.preventDefault(); setHistory(event.shiftKey ? redo : undo); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
+  useEffect(() => () => {
+    loadRequest.current += 1;
+    if (pendingUrl.current) URL.revokeObjectURL(pendingUrl.current);
+    pendingUrl.current = null;
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }, [objectUrl]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        setHistory(event.shiftKey ? redo : undo);
+      } else if (event.key.toLowerCase() === "y") {
+        event.preventDefault();
+        setHistory(redo);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const update = (patch: Partial<EditorState>) => setHistory((current) => pushHistory(current, { ...current.present, ...patch }));
   const updateCrop = (key: "x" | "y" | "width" | "height", value: number) => {
@@ -90,19 +140,52 @@ export default function ImageEditor() {
     ctx.save(); ctx.translate(canvas.width / 2, canvas.height / 2); ctx.rotate((renderState.rotation * Math.PI) / 180);
     ctx.scale(renderState.flipX ? -1 : 1, renderState.flipY ? -1 : 1);
     ctx.filter = `brightness(${renderState.brightness}%) contrast(${renderState.contrast}%) saturate(${renderState.saturation}%) blur(${renderState.blur}px) grayscale(${renderState.grayscale}%) sepia(${renderState.sepia}%)`;
-    const drawW = renderState.rotation === 90 || renderState.rotation === 270 ? cropW : cropW; const drawH = cropH;
+    const drawW = cropW;
+    const drawH = cropH;
     ctx.drawImage(image, sourceW * crop.x, sourceH * crop.y, cropW, cropH, -drawW / 2, -drawH / 2, drawW, drawH); ctx.restore();
+     setRenderVersion((version) => version + 1);
   }, [image, present, compare]);
 
   const exportImage = (skipCompare = false) => {
-    if (compare && !skipCompare) { setCompare(false); window.setTimeout(() => exportImage(true), 60); return; }
-    if (!image || !canvasRef.current) { setError("Import an image before exporting."); return; }
-    try { const mime = mimeForFormat(format); const link = document.createElement("a"); link.download = `${fileName || "imedit-export"}.${format === "jpeg" ? "jpg" : format}`; link.href = canvasRef.current.toDataURL(mime, quality / 100); if (format === "webp" && !link.href.startsWith("data:image/webp")) { setError("WebP export is not supported by this browser. Choose PNG or JPEG instead."); return; } link.click(); setStatus(`Exported ${link.download}`); } catch { setError("Export failed in this browser. Try PNG or a smaller image."); }
+    const request = compareExport.current;
+    if (exporting && (!skipCompare || !request)) return;
+    if (compare && !skipCompare) {
+      const signature = JSON.stringify({ image: image.src, state: present });
+      compareExport.current = { signature, image };
+      setExporting(true);
+      setCompare(false);
+      return;
+    }
+    if (!image || !canvasRef.current) {
+      compareExport.current = null;
+      setExporting(false);
+      setError("Import an image before exporting.");
+      return;
+    }
+    compareExport.current = null;
+    setExporting(true);
+    setError("");
+    try {
+      const mime = mimeForFormat(format);
+      const link = document.createElement("a");
+      link.download = `${fileName || "imedit-export"}.${format === "jpeg" ? "jpg" : format}`;
+      link.href = canvasRef.current.toDataURL(mime, quality / 100);
+      if (format === "webp" && !link.href.startsWith("data:image/webp")) {
+        setError("WebP export is not supported by this browser. Choose PNG or JPEG instead.");
+        return;
+      }
+      link.click();
+      setStatus(`Exported ${link.download}`);
+    } catch {
+      setError("Export failed in this browser. Try PNG or a smaller image.");
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
     <main className={styles.app}>
-      <header className={styles.header}><div className={styles.brand}><span className={styles.mark}>im</span><span>imedit</span><small>LOCAL STUDIO</small></div><div className={styles.headerActions}><button className={styles.iconButton} onClick={() => setHistory(undo)} disabled={!history.past.length} aria-label="Undo last change" title="Undo (Ctrl+Z)"><Icon name="undo" /></button><button className={styles.iconButton} onClick={() => setHistory(redo)} disabled={!history.future.length} aria-label="Redo last change" title="Redo (Ctrl+Shift+Z)"><Icon name="redo" /></button><button className={styles.textButton} onClick={reset} disabled={!image}><Icon name="reset" /> Reset</button><button className={styles.exportButton} onClick={() => exportImage()} disabled={!image}><Icon name="download" /> Export</button></div></header>
+      <header className={styles.header}><div className={styles.brand}><span className={styles.mark}>im</span><span>imedit</span><small>LOCAL STUDIO</small></div><div className={styles.headerActions}><button className={styles.iconButton} onClick={() => setHistory(undo)} disabled={!history.past.length} aria-label="Undo last change" title="Undo (Ctrl+Z)"><Icon name="undo" /></button><button className={styles.iconButton} onClick={() => setHistory(redo)} disabled={!history.future.length} aria-label="Redo last change" title="Redo (Ctrl+Shift+Z)"><Icon name="redo" /></button><button className={styles.textButton} onClick={reset} disabled={!image}><Icon name="reset" /> Reset</button><button className={styles.exportButton} onClick={() => exportImage()} disabled={!image || exporting}><Icon name="download" /> {exporting ? "Preparing…" : "Export"}</button></div></header>
       <div className={styles.workspace}>
         <aside className={styles.sidebar} aria-label="Editing controls">
           <div className={styles.panelHeading}><div><span className={styles.eyebrow}>TOOLS</span><h1>Make it yours.</h1></div><span className={styles.step}>01</span></div>
@@ -122,7 +205,7 @@ export default function ImageEditor() {
           <div className={styles.stageFooter}><span>{image ? fileName : "No image loaded"}</span><span className={styles.formatNote}>LOCAL PROCESSING · NO UPLOAD</span></div>
         </section>
       </div>
-      <section className={styles.exportBar} aria-label="Export settings"><div><span className={styles.eyebrow}>OUTPUT</span><strong>Export your edit</strong><small>Choose a format and quality for your local download.</small></div><label>Format<select value={format} onChange={(e) => setFormat(e.target.value as ExportFormat)}><option value="png">PNG · Lossless</option><option value="jpeg">JPEG · Smaller file</option><option value="webp">WebP · Modern</option></select></label><label className={styles.quality}>Quality <b>{quality}%</b><input type="range" min="10" max="100" value={quality} onChange={(e) => setQuality(Number(e.target.value))} disabled={format === "png"} /></label><button className={styles.exportButton} onClick={() => exportImage()} disabled={!image}><Icon name="download" /> Download {format.toUpperCase()}</button></section>
+      <section className={styles.exportBar} aria-label="Export settings"><div><span className={styles.eyebrow}>OUTPUT</span><strong>Export your edit</strong><small>Choose a format and quality for your local download.</small></div><label>Format<select value={format} onChange={(e) => setFormat(e.target.value as ExportFormat)}><option value="png">PNG · Lossless</option><option value="jpeg">JPEG · Smaller file</option><option value="webp">WebP · Modern</option></select></label><label className={styles.quality}>Quality <b>{quality}%</b><input type="range" min="10" max="100" value={quality} onChange={(e) => setQuality(Number(e.target.value))} disabled={format === "png"} /></label><button className={styles.exportButton} onClick={() => exportImage()} disabled={!image || exporting}><Icon name="download" /> {exporting ? "Preparing…" : `Download ${format.toUpperCase()}`}</button></section>
       <input ref={fileInput} className={styles.visuallyHidden} type="file" accept={ACCEPTED_TYPES.join(",")} onChange={handleInput} />
       {(error || status) && <div className={`${styles.toast} ${error ? styles.toastError : ""}`} role={error ? "alert" : "status"}><span>{error || status}</span><button onClick={() => { setError(""); setStatus(""); }} aria-label="Dismiss message"><Icon name="close" /></button></div>}
     </main>

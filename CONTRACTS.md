@@ -51,8 +51,8 @@ Scripts: `dev`, `build`, `start`, `lint`, `test`
 ### `src/components/ImageEditor.module.css` - 129 lines
 - exports: (nothing public)
 
-### `src/components/ImageEditor.tsx` - 131 lines
-- imports: `src/components/ImageEditor.module.css`
+### `src/components/ImageEditor.tsx` - 209 lines
+- imports: `src/lib/editor.ts`, `src/components/ImageEditor.module.css`
 - `ImageEditor` (function)
 - default export: `ImageEditor`
 
@@ -78,4 +78,4 @@ Scripts: `dev`, `build`, `start`, `lint`, `test`
 
 ## Unresolved references
 
-- `src/components/ImageEditor.tsx:4` imports `@/lib/editor` - **this file does not exist yet**
+- (none) - every internal import resolves.
