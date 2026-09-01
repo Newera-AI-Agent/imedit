@@ -4,7 +4,7 @@ import { ChangeEvent, DragEvent, useCallback, useEffect, useRef, useState } from
 import {
   ACCEPTED_TYPES, DEFAULT_EDITOR_STATE, EditorState, ExportFormat, cropForAspect,
   createHistory, mimeForFormat, pushHistory, redo, undo, validateImageFile,
-} from "@/lib/editor";
+} from "../lib/editor";
 import styles from "./ImageEditor.module.css";
 
 type History = ReturnType<typeof createHistory>;
