@@ -1,0 +1,29 @@
+{
+  "originalRequest": "public , imedit",
+  "normalizedInterpretation": "public , imedit",
+  "assumptions": [],
+  "profile": "fast",
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "description": "public , imedit",
+      "mandatory": true,
+      "status": "pending",
+      "evidenceType": "custom",
+      "acceptanceCriteria": "Concrete implementation evidence is recorded and the outcome matches the user request."
+    }
+  ],
+  "featureMatrix": [
+    "public , imedit"
+  ],
+  "contentMatrix": [],
+  "assetManifest": [],
+  "audioManifest": [],
+  "testMatrix": [],
+  "artifactMatrix": [],
+  "platformRequirements": [],
+  "permissions": [],
+  "deferredItems": [],
+  "createdAt": 1788269650333,
+  "updatedAt": 1788269650334
+}
