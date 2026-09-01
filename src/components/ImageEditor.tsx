@@ -46,7 +46,7 @@ export default function ImageEditor() {
   const [format, setFormat] = useState<ExportFormat>("png");
   const [quality, setQuality] = useState(92);
   const [exporting, setExporting] = useState(false);
-  const [renderVersion, setRenderVersion] = useState(0);
+  const exportImageRef = useRef<(skipCompare?: boolean) => void>(() => undefined);
   const fileInput = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const loadRequest = useRef(0);
@@ -89,7 +89,7 @@ export default function ImageEditor() {
       setHistory(createHistory()); setLoading(false); setStatus(`Loaded ${file.name}`);
     };
     nextImage.onerror = () => {
-      releasePendingUrl();
+      cancelPendingUrl();
       if (requestId !== loadRequest.current) return;
       setLoading(false);
       setError("This file could not be decoded as an image. Try another file.");
@@ -130,26 +130,48 @@ export default function ImageEditor() {
   const handleDrop = (event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(false); const file = event.dataTransfer.files[0]; if (file) loadFile(file); };
 
   useEffect(() => {
-    const canvas = canvasRef.current; if (!canvas || !image) return;
+    const canvas = canvasRef.current;
+    if (!canvas || !image) return;
     const renderState = compare ? DEFAULT_EDITOR_STATE : present;
-     const crop = renderState.crop; const sourceW = image.naturalWidth; const sourceH = image.naturalHeight;
-    const cropW = Math.max(1, Math.round(sourceW * crop.width)); const cropH = Math.max(1, Math.round(sourceH * crop.height));
+    const { crop } = renderState;
+    const sourceW = image.naturalWidth;
+    const sourceH = image.naturalHeight;
+    const cropW = Math.max(1, Math.round(sourceW * crop.width));
+    const cropH = Math.max(1, Math.round(sourceH * crop.height));
     const rotated = renderState.rotation === 90 || renderState.rotation === 270;
-    canvas.width = rotated ? cropH : cropW; canvas.height = rotated ? cropW : cropH;
-    const ctx = canvas.getContext("2d"); if (!ctx) return;
-    ctx.save(); ctx.translate(canvas.width / 2, canvas.height / 2); ctx.rotate((renderState.rotation * Math.PI) / 180);
-    ctx.scale(renderState.flipX ? -1 : 1, renderState.flipY ? -1 : 1);
-    ctx.filter = `brightness(${renderState.brightness}%) contrast(${renderState.contrast}%) saturate(${renderState.saturation}%) blur(${renderState.blur}px) grayscale(${renderState.grayscale}%) sepia(${renderState.sepia}%)`;
-    const drawW = cropW;
-    const drawH = cropH;
-    ctx.drawImage(image, sourceW * crop.x, sourceH * crop.y, cropW, cropH, -drawW / 2, -drawH / 2, drawW, drawH); ctx.restore();
-     setRenderVersion((version) => version + 1);
+    const width = rotated ? cropH : cropW;
+    const height = rotated ? cropW : cropH;
+    if (![sourceW, sourceH, width, height].every(Number.isSafeInteger) || width > 16384 || height > 16384) {
+      compareExport.current = null;
+      setExporting(false);
+      setError("This image is too large to render in this browser. Try a smaller image.");
+      return;
+    }
+    try {
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas rendering is unavailable");
+      ctx.save();
+      ctx.translate(width / 2, height / 2);
+      ctx.rotate((renderState.rotation * Math.PI) / 180);
+      ctx.scale(renderState.flipX ? -1 : 1, renderState.flipY ? -1 : 1);
+      ctx.filter = `brightness(${renderState.brightness}%) contrast(${renderState.contrast}%) saturate(${renderState.saturation}%) blur(${renderState.blur}px) grayscale(${renderState.grayscale}%) sepia(${renderState.sepia}%)`;
+      ctx.drawImage(image, sourceW * crop.x, sourceH * crop.y, cropW, cropH, -cropW / 2, -cropH / 2, cropW, cropH);
+      ctx.restore();
+      setError("");
+      setRenderVersion((version) => version + 1);
+    } catch {
+      compareExport.current = null;
+      setExporting(false);
+      setError("This image could not be rendered. Try a smaller image or another browser.");
+    }
   }, [image, present, compare]);
 
-  const exportImage = (skipCompare = false) => {
+  const exportImage = async (skipCompare = false) => {
     const request = compareExport.current;
     if (exporting && (!skipCompare || !request)) return;
-    if (compare && !skipCompare) {
+    if (compare && !skipCompare && image) {
       const signature = JSON.stringify({ image: image.src, state: present });
       compareExport.current = { signature, image };
       setExporting(true);
@@ -165,23 +187,48 @@ export default function ImageEditor() {
     compareExport.current = null;
     setExporting(true);
     setError("");
+    const canvas = canvasRef.current;
+    const exportCanvas = format === "jpeg" ? document.createElement("canvas") : canvas;
+    if (format === "jpeg") {
+      exportCanvas.width = canvas.width;
+      exportCanvas.height = canvas.height;
+      const exportContext = exportCanvas.getContext("2d");
+      if (!exportContext) throw new Error("Export is unavailable in this browser. Try PNG or another browser.");
+      exportContext.fillStyle = "#ffffff";
+      exportContext.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+      exportContext.drawImage(canvas, 0, 0);
+    }
+    const mime = mimeForFormat(format);
+    const downloadName = `${fileName || "imedit-export"}.${format === "jpeg" ? "jpg" : format}`;
     try {
-      const mime = mimeForFormat(format);
-      const link = document.createElement("a");
-      link.download = `${fileName || "imedit-export"}.${format === "jpeg" ? "jpg" : format}`;
-      link.href = canvasRef.current.toDataURL(mime, quality / 100);
-      if (format === "webp" && !link.href.startsWith("data:image/webp")) {
-        setError("WebP export is not supported by this browser. Choose PNG or JPEG instead.");
+      const blob = await new Promise<Blob | null>((resolve) => {
+        exportCanvas.toBlob(resolve, mime, quality / 100);
+      });
+      if (!blob || (format === "webp" && blob.type !== "image/webp")) {
+        setError(format === "webp" ? "WebP export is not supported by this browser. Choose PNG or JPEG instead." : "Export failed in this browser. Try PNG or a smaller image.");
         return;
       }
+      const link = document.createElement("a");
+      link.download = downloadName;
+      const url = URL.createObjectURL(blob);
+      link.href = url;
       link.click();
-      setStatus(`Exported ${link.download}`);
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      setStatus(`Exported ${downloadName}`);
     } catch {
       setError("Export failed in this browser. Try PNG or a smaller image.");
     } finally {
       setExporting(false);
     }
   };
+
+  exportImageRef.current = exportImage;
+  useEffect(() => {
+    const request = compareExport.current;
+    if (!request || compare || !image || request.image !== image) return;
+    const signature = JSON.stringify({ image: image.src, state: present });
+    if (request.signature === signature) exportImageRef.current(true);
+  }, [renderVersion, compare, image, present]);
 
   return (
     <main className={styles.app}>
@@ -198,7 +245,7 @@ export default function ImageEditor() {
         </aside>
         <section className={styles.stage} aria-label="Image work area">
           <div className={styles.stageTop}><span>CANVAS <i>{image ? `${image.naturalWidth} × ${image.naturalHeight}` : "READY"}</i></span><span className={styles.stageMode}>{compare ? "BEFORE / AFTER" : "EDITING"}</span></div>
-          <div className={`${styles.canvasArea} ${dragging ? styles.dragActive : ""}`} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
+          <div className={`${styles.canvasArea} ${dragging ? styles.dragActive : ""}`} role="region" tabIndex={0} aria-label="Image dropzone. Press Enter or Space to choose an image." onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.current?.click(); } }} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
             {loading ? <div className={styles.emptyState}><div className={styles.spinner} /><h2>Reading your image</h2><p>Preparing a local canvas…</p></div> : image ? <div className={styles.canvasWrap}><canvas ref={canvasRef} aria-label="Edited image preview" />{compare && <div className={styles.compareBadge}>ORIGINAL</div>}</div> : <div className={styles.emptyState}><div className={styles.uploadGlyph}><Icon name="upload" /></div><h2>Start with an image</h2><p>Drop a JPG, PNG, WebP, or GIF here.<br />Everything stays on your device.</p><button className={styles.importButton} onClick={() => fileInput.current?.click()}><Icon name="upload" /> Choose image</button><span className={styles.fileNote}>Maximum file size · 25 MB</span></div>}
             {dragging && <div className={styles.dropOverlay}><Icon name="upload" /><strong>Release to import</strong></div>}
           </div>

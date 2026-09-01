@@ -34,7 +34,7 @@ export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export function validateImageFile(file: File): string | null {
-  if (!ACCEPTED_TYPES.includes(file.type)) return "Use a JPG, PNG, WebP, or GIF image.";
+  // Some local files omit MIME metadata; let the browser's image decoder verify them.\n  if (file.type && !ACCEPTED_TYPES.includes(file.type)) return "Use a JPG, PNG, WebP, or GIF image.";
   if (file.size > MAX_FILE_BYTES) return "That image is larger than 25 MB. Choose a smaller file.";
   return null;
 }
