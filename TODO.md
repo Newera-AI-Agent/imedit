@@ -4,4 +4,5 @@
 - [x] Fix canvas transforms and interaction edge cases
 - [x] Polish responsive controls and export feedback
 - [x] Run static checks and review the final slice
-- [~] Repair reviewed editor issues, rebuild, and deliver
+- [x] Repair reviewed editor issues and build
+- [!] Deploy and verify imedit

@@ -57,6 +57,9 @@ export default function ImageEditor() {
   const present = history.present;
 
   const loadFile = useCallback((file: File) => {
+    compareExport.current = null;
+    setCompare(false);
+    setExporting(false);
     setError(""); setStatus("");
     const requestId = ++loadRequest.current;
     if (pendingUrl.current) {
@@ -142,7 +145,9 @@ export default function ImageEditor() {
     const rotated = renderState.rotation === 90 || renderState.rotation === 270;
     const width = rotated ? cropH : cropW;
     const height = rotated ? cropW : cropH;
-    if (![sourceW, sourceH, width, height].every(Number.isSafeInteger) || width > 16384 || height > 16384) {
+    const maxCanvasPixels = 64_000_000;
+    const pixelArea = width * height;
+    if (![sourceW, sourceH, width, height].every(Number.isSafeInteger) || sourceW <= 0 || sourceH <= 0 || width > 16384 || height > 16384 || !Number.isSafeInteger(pixelArea) || pixelArea > maxCanvasPixels) {
       compareExport.current = null;
       setExporting(false);
       setError("This image is too large to render in this browser. Try a smaller image.");
@@ -194,7 +199,9 @@ export default function ImageEditor() {
       exportCanvas.width = canvas.width;
       exportCanvas.height = canvas.height;
       const exportContext = exportCanvas.getContext("2d");
-      if (!exportContext) throw new Error("Export is unavailable in this browser. Try PNG or another browser.");
+      if (!exportContext) setExporting(false);
+         setError("Export is unavailable in this browser. Try PNG or another browser.");
+         return;
       exportContext.fillStyle = "#ffffff";
       exportContext.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
       exportContext.drawImage(canvas, 0, 0);
@@ -205,7 +212,7 @@ export default function ImageEditor() {
       const blob = await new Promise<Blob | null>((resolve) => {
         exportCanvas.toBlob(resolve, mime, quality / 100);
       });
-      if (!blob || (format === "webp" && blob.type !== "image/webp")) {
+      if (!blob || ((format === "jpeg" || format === "webp") && blob.type !== mime)) {
         setError(format === "webp" ? "WebP export is not supported by this browser. Choose PNG or JPEG instead." : "Export failed in this browser. Try PNG or a smaller image.");
         return;
       }
@@ -247,7 +254,7 @@ export default function ImageEditor() {
         <section className={styles.stage} aria-label="Image work area">
           <div className={styles.stageTop}><span>CANVAS <i>{image ? `${image.naturalWidth} × ${image.naturalHeight}` : "READY"}</i></span><span className={styles.stageMode}>{compare ? "BEFORE / AFTER" : "EDITING"}</span></div>
           <div className={`${styles.canvasArea} ${dragging ? styles.dragActive : ""}`} role="region" tabIndex={0} aria-label="Image dropzone. Press Enter or Space to choose an image." onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.current?.click(); } }} onDragOver={(e) => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
-            {loading ? <div className={styles.emptyState}><div className={styles.spinner} /><h2>Reading your image</h2><p>Preparing a local canvas…</p></div> : image ? <div className={styles.canvasWrap}><canvas ref={canvasRef} aria-label="Edited image preview" />{compare && <div className={styles.compareBadge}>ORIGINAL</div>}</div> : <div className={styles.emptyState}><div className={styles.uploadGlyph}><Icon name="upload" /></div><h2>Start with an image</h2><p>Drop a JPG, PNG, WebP, or GIF here.<br />Everything stays on your device.</p><button className={styles.importButton} onClick={() => fileInput.current?.click()}><Icon name="upload" /> Choose image</button><span className={styles.fileNote}>Maximum file size · 25 MB</span></div>}
+            {loading ? <div className={styles.emptyState}><div className={styles.spinner} /><h2>Reading your image</h2><p>Preparing a local canvas…</p></div> : image ? <div className={styles.canvasWrap}><canvas ref={canvasRef} role="img" aria-label="Edited image preview" />{compare && <div className={styles.compareBadge}>ORIGINAL</div>}</div> : <div className={styles.emptyState}><div className={styles.uploadGlyph}><Icon name="upload" /></div><h2>Start with an image</h2><p>Drop a JPG, PNG, WebP, or GIF here.<br />Everything stays on your device.</p><button className={styles.importButton} onClick={() => fileInput.current?.click()}><Icon name="upload" /> Choose image</button><span className={styles.fileNote}>Maximum file size · 25 MB</span></div>}
             {dragging && <div className={styles.dropOverlay}><Icon name="upload" /><strong>Release to import</strong></div>}
           </div>
           <div className={styles.stageFooter}><span>{image ? fileName : "No image loaded"}</span><span className={styles.formatNote}>LOCAL PROCESSING · NO UPLOAD</span></div>

@@ -51,7 +51,7 @@ Scripts: `dev`, `build`, `start`, `lint`, `test`
 ### `src/components/ImageEditor.module.css` - 129 lines
 - exports: (nothing public)
 
-### `src/components/ImageEditor.tsx` - 261 lines
+### `src/components/ImageEditor.tsx` - 269 lines
 - imports: `src/lib/editor.ts`, `src/components/ImageEditor.module.css`
 - `ImageEditor` (function)
 - default export: `ImageEditor`
