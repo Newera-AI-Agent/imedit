@@ -18,10 +18,10 @@
 .brand small { margin-left: 5px; color: #82908d; font: 10px var(--font-geist-mono), monospace; letter-spacing: .13em; }
 .mark { display: inline-grid; place-items: center; width: 27px; height: 27px; background: #c4f16b; color: #1a211b; font: 700 12px var(--font-geist-mono), monospace; letter-spacing: -.13em; padding-right: 3px; }
 .headerActions { display: flex; align-items: center; gap: 8px; }
-button, select, input { font: inherit; }
-button { cursor: pointer; }
-button:disabled { cursor: not-allowed; opacity: .36; }
-button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #c4f16b; outline-offset: 3px; }
+ :global(button), :global(select), :global(input) { font: inherit; }
+:global(button) { cursor: pointer; }
+:global(button:disabled) { cursor: not-allowed; opacity: .36; }
+:global(button:focus-visible), :global(select:focus-visible), :global(input:focus-visible) { outline: 2px solid #c4f16b; outline-offset: 3px; }
 .icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto; }
 .iconButton, .textButton, .exportButton, .importButton { border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: background .18s ease, color .18s ease, transform .18s ease; }
 .iconButton { width: 36px; height: 36px; color: #aab8b3; background: transparent; }
@@ -34,7 +34,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px s
 .sidebar { padding: 32px 24px 24px; border-right: 1px solid rgba(255,255,255,.09); background: #15191a; display: flex; flex-direction: column; }
 .panelHeading { display: flex; justify-content: space-between; margin-bottom: 31px; }
 .eyebrow { display: block; color: #8c9996; font: 10px var(--font-geist-mono), monospace; letter-spacing: .14em; }
-h1 { margin: 9px 0 0; color: #f6f8f7; font-size: 23px; line-height: 1.1; letter-spacing: -.04em; }
+.panelHeading h1 { margin: 9px 0 0; color: #f6f8f7; font-size: 23px; line-height: 1.1; letter-spacing: -.04em; }
 .step { color: #6e7b78; font: 11px var(--font-geist-mono), monospace; }
 .sidebarHint { color: #899592; font-size: 13px; line-height: 1.6; border-left: 2px solid #3a4241; padding: 4px 0 4px 13px; }
 .controlSection { padding: 22px 0; border-top: 1px solid rgba(255,255,255,.09); }
@@ -46,12 +46,12 @@ h1 { margin: 9px 0 0; color: #f6f8f7; font-size: 23px; line-height: 1.1; letter-
 .actionGrid button:hover, .actionGrid button[aria-pressed=true] { border-color: #718453; color: #d9f7a5; background: #222b22; }
 .actionGrid button[aria-pressed=true] { box-shadow: inset 2px 0 #c4f16b; }
 .selectLabel, .exportBar label { display: grid; gap: 7px; color: #93a19d; font-size: 11px; }
-select { width: 100%; appearance: none; border: 1px solid rgba(255,255,255,.12); background: #1d2324; color: #dfe8e4; border-radius: 0; padding: 10px 11px; }
+:global(select) { width: 100%; appearance: none; border: 1px solid rgba(255,255,255,.12); background: #1d2324; color: #dfe8e4; border-radius: 0; padding: 10px 11px; }
 .sliderRow { display: grid; gap: 8px; margin: 16px 0; color: #9aa7a3; font-size: 11px; }
 .sliderRow > span { display: flex; align-items: center; gap: 7px; }
 .sliderRow .icon { width: 14px; height: 14px; color: #8d9d97; }
 .sliderRow b { margin-left: auto; color: #dce6e1; font: 10px var(--font-geist-mono), monospace; font-weight: 400; }
-input[type=range] { width: 100%; height: 3px; accent-color: #c4f16b; cursor: pointer; }
+:global(input[type=range]) { width: 100%; height: 3px; accent-color: #c4f16b; cursor: pointer; }
 .privacy { margin-top: auto; padding-top: 24px; border-top: 1px solid rgba(255,255,255,.09); display: flex; gap: 10px; color: #a7b4af; }
 .lock { color: #c4f16b; font: 15px var(--font-geist-mono), monospace; }
 .privacy strong { display: block; color: #dce6e2; font-size: 11px; font-weight: 600; }
@@ -119,5 +119,10 @@ input[type=range] { width: 100%; height: 3px; accent-color: #c4f16b; cursor: poi
   .canvasWrap canvas { max-height: 48vh; }
 }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  :global(*), :global(*::before), :global(*::after) { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+.cropGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.cropGrid label { position: relative; display: grid; gap: 5px; color: #82908d; font-size: 10px; }
+.cropGrid input { width: 100%; border: 1px solid rgba(255,255,255,.12); background: #1d2324; color: #dfe8e4; padding: 8px 21px 8px 8px; }
+.cropGrid span { position: absolute; right: 8px; bottom: 9px; color: #74817e; font: 10px var(--font-geist-mono), monospace; }
+.lock .icon { width: 16px; height: 16px; }

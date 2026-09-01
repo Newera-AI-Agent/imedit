@@ -8,7 +8,7 @@ import {
 import styles from "./ImageEditor.module.css";
 
 type History = ReturnType<typeof createHistory>;
-type IconName = "upload" | "undo" | "redo" | "reset" | "rotate" | "flip" | "download" | "compare" | "crop" | "sun" | "contrast" | "droplet" | "blur" | "spark" | "close";
+type IconName = "upload" | "undo" | "redo" | "reset" | "rotate" | "flip" | "download" | "compare" | "crop" | "sun" | "contrast" | "droplet" | "blur" | "spark" | "close" | "lock";
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, string> = {
@@ -19,7 +19,7 @@ function Icon({ name }: { name: IconName }) {
     crop: "M6 3v15h15M3 6h15V3M18 21v-3h3", sun: "M12 3v2m0 14v2M3 12h2m14 0h2m-3.5-5.5 1.5-1.5M6 18l1.5-1.5m0-9L6 6m12 12-1.5-1.5M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8",
     contrast: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 0v18", droplet: "M12 3s6 6 6 11a6 6 0 0 1-12 0c0-5 6-11 6-11z",
     blur: "M5 6h14M3 12h18M5 18h14", spark: "m12 3 1.2 5.8L19 10l-5.8 1.2L12 17l-1.2-5.8L5 10l5.8-1.2L12 3z",
-    close: "M5 5l14 14M19 5 5 19",
+    close: "M5 5l14 14M19 5 5 19", lock: "M7 10V7a5 5 0 0 1 10 0v3M5 10h14v10H5z",
   };
   return <svg className={styles.icon} viewBox="0 0 24 24" aria-hidden="true"><path d={paths[name]} /></svg>;
 }
@@ -69,6 +69,12 @@ export default function ImageEditor() {
   useEffect(() => { const onKey = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key === "z") { event.preventDefault(); setHistory(event.shiftKey ? redo : undo); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
 
   const update = (patch: Partial<EditorState>) => setHistory((current) => pushHistory(current, { ...current.present, ...patch }));
+  const updateCrop = (key: "x" | "y" | "width" | "height", value: number) => {
+    const crop = { ...present.crop, [key]: value };
+    crop.width = Math.min(crop.width, 1 - crop.x); crop.height = Math.min(crop.height, 1 - crop.y);
+    crop.x = Math.min(Math.max(0, crop.x), 1 - crop.width); crop.y = Math.min(Math.max(0, crop.y), 1 - crop.height);
+    update({ crop, cropMode: "free" });
+  };
   const reset = () => setHistory((current) => pushHistory(current, DEFAULT_EDITOR_STATE));
   const handleInput = (event: ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (file) loadFile(file); event.target.value = ""; };
   const handleDrop = (event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(false); const file = event.dataTransfer.files[0]; if (file) loadFile(file); };
@@ -90,7 +96,7 @@ export default function ImageEditor() {
 
   const exportImage = () => {
     if (!image || !canvasRef.current) { setError("Import an image before exporting."); return; }
-    try { const mime = mimeForFormat(format); const link = document.createElement("a"); link.download = `${fileName || "imedit-export"}.${format === "jpeg" ? "jpg" : format}`; link.href = canvasRef.current.toDataURL(mime, quality / 100); link.click(); setStatus(`Exported ${link.download}`); } catch { setError("Export failed in this browser. Try PNG or a smaller image."); }
+    try { const mime = mimeForFormat(format); const link = document.createElement("a"); link.download = `${fileName || "imedit-export"}.${format === "jpeg" ? "jpg" : format}`; link.href = canvasRef.current.toDataURL(mime, quality / 100); if (format === "webp" && !link.href.startsWith("data:image/webp")) { setError("WebP export is not supported by this browser. Choose PNG or JPEG instead."); return; } link.click(); setStatus(`Exported ${link.download}`); } catch { setError("Export failed in this browser. Try PNG or a smaller image."); }
   };
 
   return (
@@ -101,10 +107,10 @@ export default function ImageEditor() {
           <div className={styles.panelHeading}><div><span className={styles.eyebrow}>TOOLS</span><h1>Make it yours.</h1></div><span className={styles.step}>01</span></div>
           {!image ? <div className={styles.sidebarHint}>Import an image to unlock your editing controls.</div> : <>
             <section className={styles.controlSection}><h2>Transform</h2><div className={styles.actionGrid}><button onClick={() => update({ rotation: ((present.rotation + 90) % 360) as EditorState["rotation"] })} aria-label="Rotate 90 degrees"><Icon name="rotate" /><span>Rotate</span></button><button onClick={() => update({ flipX: !present.flipX })} aria-pressed={present.flipX}><Icon name="flip" /><span>Flip H</span></button><button onClick={() => update({ flipY: !present.flipY })} aria-pressed={present.flipY}><Icon name="flip" /><span>Flip V</span></button><button onClick={() => setCompare(!compare)} aria-pressed={compare}><Icon name="compare" /><span>Compare</span></button></div></section>
-            <section className={styles.controlSection}><div className={styles.sectionTitle}><h2>Crop</h2><Icon name="crop" /></div><label className={styles.selectLabel}>Aspect ratio<select value={present.cropMode} onChange={(e) => { const mode = e.target.value as EditorState["cropMode"]; update({ cropMode: mode, crop: cropForAspect(mode, image.naturalWidth, image.naturalHeight) }); }}><option value="free">Freeform</option><option value="1:1">Square · 1:1</option><option value="4:5">Portrait · 4:5</option><option value="16:9">Landscape · 16:9</option></select></label></section>
+            <section className={styles.controlSection}><div className={styles.sectionTitle}><h2>Crop</h2><Icon name="crop" /></div><label className={styles.selectLabel}>Aspect ratio<select value={present.cropMode} onChange={(e) => { const mode = e.target.value as EditorState["cropMode"]; update({ cropMode: mode, crop: cropForAspect(mode, image.naturalWidth, image.naturalHeight) }); }}><option value="free">Freeform</option><option value="1:1">Square · 1:1</option><option value="4:5">Portrait · 4:5</option><option value="16:9">Landscape · 16:9</option></select></label>{present.cropMode === "free" && <div className={styles.cropGrid}>{(["x", "y", "width", "height"] as const).map((key) => <label key={key}>{key === "x" ? "Left" : key === "y" ? "Top" : key === "width" ? "Width" : "Height"}<input type="number" min="0" max="100" value={Math.round(present.crop[key] * 100)} onChange={(e) => updateCrop(key, Math.min(100, Math.max(0, Number(e.target.value) || 0)) / 100)} /><span>%</span></label>)}</div>}</section>
             <section className={styles.controlSection}><h2>Adjust</h2>{toolLabels.map((tool) => <label className={styles.sliderRow} key={tool.key}><span><Icon name={tool.icon} />{tool.label}<b>{present[tool.key]}{tool.unit}</b></span><input type="range" min={tool.min} max={tool.max} value={present[tool.key]} onChange={(e) => update({ [tool.key]: Number(e.target.value) } as Partial<EditorState>)} /></label>)}</section>
           </>}
-          <div className={styles.privacy}><span className={styles.lock}>▣</span><div><strong>Private by design</strong><p>Your image never leaves this browser.</p></div></div>
+          <div className={styles.privacy}><span className={styles.lock}><Icon name="lock" /></span><div><strong>Private by design</strong><p>Your image never leaves this browser.</p></div></div>
         </aside>
         <section className={styles.stage} aria-label="Image work area">
           <div className={styles.stageTop}><span>CANVAS <i>{image ? `${image.naturalWidth} × ${image.naturalHeight}` : "READY"}</i></span><span className={styles.stageMode}>{compare ? "BEFORE / AFTER" : "EDITING"}</span></div>
